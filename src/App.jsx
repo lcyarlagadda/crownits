@@ -109,16 +109,16 @@ const values = [
 ]
 
 const lcaLinks = [
-  ['Business Intelligence Analysts — TX 2025', 'https://crownits.com/wp-content/uploads/2026/04/Business-Intelligence-Analysts_TX_2025-Certified-LCA.pdf'],
-  ['Computer Systems Analysts — FL 2025', 'https://crownits.com/wp-content/uploads/2026/04/Computer-Systems-Analysts_FL_2025-Certified-LCA.pdf'],
-  ['Network & Computer Systems Administrators — IN 2025', 'https://crownits.com/wp-content/uploads/2026/04/Network-and-Computer-Systems-Administrators_IN_2025-Certified-LCA.pdf'],
-  ['Network & Computer Systems Administrators — OH 2025', 'https://crownits.com/wp-content/uploads/2026/04/Network-and-Computer-Systems-Administrators_OH_2025-Certified-LCA.pdf'],
-  ['Software Developer — OH 2025', 'https://crownits.com/wp-content/uploads/2026/04/Software-Developer_OH_2025-Certified-LCA.pdf'],
-  ['Software Developer — TX 2025', 'https://crownits.com/wp-content/uploads/2026/04/SOftware-Developer_TX_2025-Certified-LCA.pdf'],
-  ['Software Developer 2 — OH 2025', 'https://crownits.com/wp-content/uploads/2026/04/Software-Developer2_OH_2025-Certified-LCA.pdf'],
-  ['Software Developer — IL 2024', 'https://crownits.com/wp-content/uploads/2026/04/Software-Developers_IL_2024-Certified-LCA.pdf'],
-  ['Software Developers — OH 2024', 'https://crownits.com/wp-content/uploads/2026/04/Software-Developers_OH_2024-Certified-LCA.pdf'],
-  ['Software Quality Assurance Analysts — NY 2025', 'https://crownits.com/wp-content/uploads/2026/04/Software-Quality-Assurance-Analysts_NY_2025-Certified-LCA.pdf'],
+  ['Business Intelligence Analysts — TX 2025', '/lca/Business-Intelligence-Analysts_TX_2025-Certified-LCA.pdf'],
+  ['Computer Systems Analysts — FL 2025', '/lca/Computer-Systems-Analysts_FL_2025-Certified-LCA.pdf'],
+  ['Network & Computer Systems Administrators — IN 2025', '/lca/Network-and-Computer-Systems-Administrators_IN_2025-Certified-LCA.pdf'],
+  ['Network & Computer Systems Administrators — OH 2025', '/lca/Network-and-Computer-Systems-Administrators_OH_2025-Certified-LCA.pdf'],
+  ['Software Developer — OH 2025', '/lca/Software-Developer_OH_2025-Certified-LCA.pdf'],
+  ['Software Developer — TX 2025', '/lca/SOftware-Developer_TX_2025-Certified-LCA.pdf'],
+  ['Software Developer 2 — OH 2025', '/lca/Software-Developer2_OH_2025-Certified-LCA.pdf'],
+  ['Software Developer — IL 2024', '/lca/Software-Developers_IL_2024-Certified-LCA.pdf'],
+  ['Software Developers — OH 2024', '/lca/Software-Developers_OH_2024-Certified-LCA.pdf'],
+  ['Software Quality Assurance Analysts — NY 2025', '/lca/Software-Quality-Assurance-Analysts_NY_2025-Certified-LCA.pdf'],
 ]
 
 /* ── layout ───────────────────────────────────────────────────── */
