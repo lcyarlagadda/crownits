@@ -124,11 +124,31 @@ const lcaLinks = [
 /* ── layout ───────────────────────────────────────────────────── */
 function Layout({ children }) {
   const [scrolled, setScrolled] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const location = window.location.pathname;
+
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Close menu on route change
+  React.useEffect(() => { setMenuOpen(false); }, [location]);
+
+  // Prevent body scroll when menu open
+  React.useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
+
+  const navLinks = [
+    { to: '/', label: 'Home', end: true },
+    { to: '/company', label: 'Company' },
+    { to: '/services', label: 'Services' },
+    { to: '/careers', label: 'Careers' },
+    { to: '/lca-eta-9035', label: 'LCA' },
+  ];
 
   return (
     <div className="site-shell">
@@ -142,16 +162,39 @@ function Layout({ children }) {
               <span className="brand-sub">IT Staffing and Consultancy Services</span>
             </span>
           </a>
-          <nav>
-            <NavLink to="/" end>Home</NavLink>
-            <NavLink to="/company">Company</NavLink>
-            <NavLink to="/services">Services</NavLink>
-            <NavLink to="/careers">Careers</NavLink>
-            <NavLink to="/lca-eta-9035">LCA</NavLink>
+
+          {/* Desktop nav */}
+          <nav className="nav-desktop">
+            {navLinks.map(l => <NavLink key={l.to} to={l.to} end={l.end}>{l.label}</NavLink>)}
             <NavLink to="/contact-us" className="nav-cta">Let's Talk</NavLink>
           </nav>
+
+          {/* Hamburger button */}
+          <button
+            className={`nav-hamburger${menuOpen ? ' nav-hamburger--open' : ''}`}
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            <span /><span /><span />
+          </button>
         </div>
       </header>
+
+      {/* Mobile drawer */}
+      <div className={`nav-drawer${menuOpen ? ' nav-drawer--open' : ''}`} aria-hidden={!menuOpen}>
+        <div className="nav-drawer-inner">
+          {navLinks.map(l => (
+            <NavLink key={l.to} to={l.to} end={l.end} className="nav-drawer-link" onClick={() => setMenuOpen(false)}>
+              {l.label}
+            </NavLink>
+          ))}
+          <NavLink to="/contact-us" className="nav-drawer-cta" onClick={() => setMenuOpen(false)}>
+            Let's Talk
+          </NavLink>
+        </div>
+      </div>
+      {menuOpen && <div className="nav-overlay" onClick={() => setMenuOpen(false)} />}
 
       <main>{children}</main>
 
