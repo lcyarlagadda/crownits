@@ -135,7 +135,7 @@ function Layout({ children }) {
         <div className="header-accent-line" />
         <div className="container header-inner">
           <a href="/" className="brand">
-            <img src="/Logo.png" alt="CrownIT Solutions" className="brand-logo" />
+            <img src={`${import.meta.env.BASE_URL}Logo.png`} alt="CrownIT Solutions" className="brand-logo" />
             <span className="brand-text">
               <span className="brand-title">Crown IT Solutions</span>
               <span className="brand-sub">IT Staffing and Consultancy Services</span>
@@ -158,7 +158,7 @@ function Layout({ children }) {
         <div className="container footer-inner">
           <div className="footer-brand">
             <a href="/" className="footer-brand-link">
-              <img src="/Logo.png" alt="CrownIT Solutions" className="footer-logo" />
+              <img src={`${import.meta.env.BASE_URL}Logo.png`} alt="CrownIT Solutions" className="footer-logo" />
               <span className="footer-brand-text">
                 <span className="footer-brand-name">Crown IT Solutions</span>
                 <span className="footer-brand-tag">IT Staffing and Consultancy Services</span>
