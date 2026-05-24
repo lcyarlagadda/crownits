@@ -1,9 +1,54 @@
-import React, { useEffect, useState } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import React, { useEffect, useRef, useState } from 'react'
+import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import './App.css'
 import careersData from './data/careers.json'
-import lcaFiles from './data/lca-files.json'
-import logoUrl from './assets/Logo.png'
+import lcaFiles   from './data/lca-files.json'
+import usersData  from './data/users.json'
+import logoUrl    from './assets/Logo.png'
+
+/* ── auth context ─────────────────────────────────────────────── */
+const AuthCtx = React.createContext(null)
+function useAuth() { return React.useContext(AuthCtx) }
+
+/* ── github api ───────────────────────────────────────────────── */
+const GH = {
+  token : import.meta.env.VITE_GITHUB_TOKEN  || '',
+  owner : import.meta.env.VITE_GITHUB_OWNER  || 'lcyarlagadda',
+  repo  : import.meta.env.VITE_GITHUB_REPO   || 'crownits',
+  branch: import.meta.env.VITE_GITHUB_BRANCH || 'main',
+}
+const ghBase    = () => `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents`
+const ghHeaders = () => ({ Authorization: `Bearer ${GH.token}`, 'Content-Type': 'application/json' })
+
+async function ghGet(path) {
+  const r = await fetch(`${ghBase()}/${path}`, { headers: ghHeaders() })
+  if (!r.ok) throw new Error(`GitHub GET ${r.status}`)
+  return r.json()
+}
+async function ghPut(path, message, b64, sha) {
+  const body = { message, content: b64, branch: GH.branch }
+  if (sha) body.sha = sha
+  const r = await fetch(`${ghBase()}/${path}`, { method: 'PUT', headers: ghHeaders(), body: JSON.stringify(body) })
+  if (!r.ok) throw new Error(`GitHub PUT ${r.status}`)
+  return r.json()
+}
+async function ghDel(path, message, sha) {
+  const r = await fetch(`${ghBase()}/${path}`, {
+    method: 'DELETE', headers: ghHeaders(),
+    body: JSON.stringify({ message, sha, branch: GH.branch }),
+  })
+  if (!r.ok) throw new Error(`GitHub DEL ${r.status}`)
+  return r.json()
+}
+function b64(str) { return btoa(unescape(encodeURIComponent(str))) }
+function fileToB64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload  = () => res(r.result.split(',')[1])
+    r.onerror = rej
+    r.readAsDataURL(file)
+  })
+}
 
 /* ── scroll-reveal hook ───────────────────────────────────────── */
 function useReveal() {
@@ -112,21 +157,19 @@ const values = [
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 /* ── login modal ──────────────────────────────────────────────── */
-function LoginModal({ onClose }) {
+function LoginModal({ onClose, onLogin }) {
   const [form, setForm] = useState({ username: '', password: '' })
   const [errors, setErrors] = useState({})
   const [showPw, setShowPw] = useState(false)
   const [authError, setAuthError] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // Close on ESC
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Lock body scroll
   React.useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
@@ -155,8 +198,15 @@ function LoginModal({ onClose }) {
     setLoading(true)
     setTimeout(() => {
       setLoading(false)
-      setAuthError(true)
-    }, 900)
+      const found = usersData.find(
+        u => u.username === form.username.trim() && u.password === form.password
+      )
+      if (found) {
+        onLogin({ username: found.username, role: found.role })
+      } else {
+        setAuthError(true)
+      }
+    }, 700)
   }
 
   return (
@@ -239,6 +289,9 @@ function Layout({ children }) {
   const [scrolled, setScrolled] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [loginOpen, setLoginOpen] = React.useState(false);
+  const [currentUser, setCurrentUser] = React.useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('crownit_user')) } catch { return null }
+  });
   const location = window.location.pathname;
 
   React.useEffect(() => {
@@ -247,14 +300,21 @@ function Layout({ children }) {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Close menu on route change
   React.useEffect(() => { setMenuOpen(false); }, [location]);
-
-  // Prevent body scroll when menu open
   React.useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [menuOpen]);
+
+  function handleLogin(user) {
+    setCurrentUser(user);
+    sessionStorage.setItem('crownit_user', JSON.stringify(user));
+    setLoginOpen(false);
+  }
+  function handleLogout() {
+    setCurrentUser(null);
+    sessionStorage.removeItem('crownit_user');
+  }
 
   const navLinks = [
     { to: '/', label: 'Home', end: true },
@@ -264,30 +324,46 @@ function Layout({ children }) {
     { to: '/lca-eta-9035', label: 'LCA' },
   ];
 
+  const isAdmin = currentUser?.role === 'admin';
+
   return (
+    <AuthCtx.Provider value={{ currentUser, isAdmin, logout: handleLogout }}>
     <div className="site-shell">
       <header className={`site-header${scrolled ? ' site-header--scrolled' : ''}`}>
         <div className="header-accent-line" />
-        <div className="container header-inner">
-          <a href="/" className="brand">
+        <div className="header-inner">
+          <NavLink to="/" className="brand">
             <img src={logoUrl} alt="CrownIT Solutions" className="brand-logo" />
             <span className="brand-text">
               <span className="brand-title">Crown IT Solutions</span>
               <span className="brand-sub">IT Staffing and Consultancy Services</span>
             </span>
-          </a>
+          </NavLink>
 
           {/* Desktop nav */}
           <nav className="nav-desktop">
             {navLinks.map(l => <NavLink key={l.to} to={l.to} end={l.end}>{l.label}</NavLink>)}
             <NavLink to="/contact-us" className="nav-cta">Let's Talk</NavLink>
-            <button className="nav-login-btn" onClick={() => setLoginOpen(true)}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
-                <circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M1 15c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              Employee Login
-            </button>
+            {currentUser ? (
+              <div className="nav-user-chip">
+                <span className="nav-user-name">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
+                    <circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M1 15c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  {currentUser.username}
+                </span>
+                <button className="nav-logout-btn" onClick={handleLogout}>Sign Out</button>
+              </div>
+            ) : (
+              <button className="nav-login-btn" onClick={() => setLoginOpen(true)}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
+                  <circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/>
+                  <path d="M1 15c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                Employee Login
+              </button>
+            )}
           </nav>
 
           {/* Hamburger button */}
@@ -305,6 +381,12 @@ function Layout({ children }) {
       {/* Mobile drawer */}
       <div className={`nav-drawer${menuOpen ? ' nav-drawer--open' : ''}`} aria-hidden={!menuOpen}>
         <div className="nav-drawer-inner">
+          {currentUser && (
+            <div className="nav-drawer-user">
+              <span>Signed in as <strong>{currentUser.username}</strong></span>
+              <button onClick={() => { handleLogout(); setMenuOpen(false); }} className="nav-drawer-signout">Sign Out</button>
+            </div>
+          )}
           {navLinks.map(l => (
             <NavLink key={l.to} to={l.to} end={l.end} className="nav-drawer-link" onClick={() => setMenuOpen(false)}>
               {l.label}
@@ -313,26 +395,28 @@ function Layout({ children }) {
           <NavLink to="/contact-us" className="nav-drawer-cta" onClick={() => setMenuOpen(false)}>
             Let's Talk
           </NavLink>
-          <button className="nav-drawer-login" onClick={() => { setMenuOpen(false); setLoginOpen(true); }}>
-            Employee Login
-          </button>
+          {!currentUser && (
+            <button className="nav-drawer-login" onClick={() => { setMenuOpen(false); setLoginOpen(true); }}>
+              Employee Login
+            </button>
+          )}
         </div>
       </div>
       {menuOpen && <div className="nav-overlay" onClick={() => setMenuOpen(false)} />}
-      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
+      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} onLogin={handleLogin} />}
 
       <main>{children}</main>
 
       <footer className="site-footer">
         <div className="container footer-inner">
           <div className="footer-brand">
-            <a href="/" className="footer-brand-link">
+            <NavLink to="/" className="footer-brand-link">
               <img src={logoUrl} alt="CrownIT Solutions" className="footer-logo" />
               <span className="footer-brand-text">
                 <span className="footer-brand-name">Crown IT Solutions</span>
                 <span className="footer-brand-tag">IT Staffing and Consultancy Services</span>
               </span>
-            </a>
+            </NavLink>
             <p className="footer-copy">© Copyright 2025 CrownIT Solutions, LLC. All Rights Reserved.</p>
           </div>
           <div className="footer-cols">
@@ -358,6 +442,7 @@ function Layout({ children }) {
         </div>
       </footer>
     </div>
+    </AuthCtx.Provider>
   )
 }
 
@@ -789,14 +874,213 @@ function CareersPage() {
   )
 }
 
+/* ── job apply modal ──────────────────────────────────────────── */
+function JobApplyModal({ job, onClose }) {
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
+  const [resumeFile, setResumeFile] = useState(null)
+  const [submitted, setSubmitted] = useState(false)
+  const dutyBullets = job.duties.split(';').map(s => s.trim()).filter(Boolean)
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => { document.body.style.overflow = ''; window.removeEventListener('keydown', onKey) }
+  }, [onClose])
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const lines = [
+      `Name: ${form.name}`,
+      `Email: ${form.email}`,
+      form.phone ? `Phone: ${form.phone}` : '',
+      '',
+      form.message ? `Cover Note:\n${form.message}` : '',
+      resumeFile ? `\nResume file: ${resumeFile.name}\n(Please attach the file to this email before sending.)` : '',
+    ].filter(l => l !== undefined).join('\n')
+    window.location.href = `mailto:${job.applyEmail}?subject=${encodeURIComponent(`Application for ${job.title}`)}&body=${encodeURIComponent(lines)}`
+    setSubmitted(true)
+  }
+
+  return (
+    <div className="jm-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="jm-panel" role="dialog" aria-modal="true" aria-label={`Apply for ${job.title}`}>
+
+        {/* sticky header */}
+        <div className="jm-header">
+          <div className="jm-header-info">
+            <span className="job-posted">Posted {job.postedOn}</span>
+            <h2 className="jm-title">{job.title}</h2>
+            <span className="job-location" style={{fontSize:'0.82rem'}}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{marginRight:'4px',verticalAlign:'middle'}}>
+                <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                <circle cx="6" cy="4.5" r="1.2" fill="currentColor"/>
+              </svg>
+              {job.location}
+            </span>
+          </div>
+          <button className="jm-close" onClick={onClose} aria-label="Close">
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+
+        {/* scrollable body */}
+        <div className="jm-body">
+
+          {/* ── Job Details ── */}
+          <div className="jm-details">
+            <div className="job-section">
+              <h4>Job Duties</h4>
+              <ul className="job-duties-list">
+                {dutyBullets.map((d, i) => <li key={i}>{d}.</li>)}
+              </ul>
+            </div>
+
+            <div className="jm-sidebar-cols">
+              <div className="job-section">
+                <h4>Tools &amp; Technologies</h4>
+                <div className="job-tags">
+                  {job.tools.map(t => <span className="job-tag" key={t}>{t}</span>)}
+                </div>
+              </div>
+
+              <div className="job-section">
+                <h4>Minimum Qualifications</h4>
+                <ul className="job-bullet-list">
+                  {[
+                    { label: 'Education', value: job.requirements.education },
+                    { label: 'Experience', value: job.requirements.experience },
+                    { label: 'Other', value: job.requirements.other },
+                  ].filter(r => r.value).map(({ label, value }) => (
+                    <li key={label}><strong>{label}:</strong> {value}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="job-section">
+                <h4>Location</h4>
+                <p className="job-hq-info">
+                  Headquarters: <strong>{job.headquarters}</strong><br/>
+                  Worksites: {job.location}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Application Form ── */}
+          <div className="jm-apply">
+            <h3 className="jm-apply-title">Apply for this Position</h3>
+            {submitted ? (
+              <div className="jm-success">
+                <svg width="40" height="40" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="var(--amber)" strokeWidth="1.8"/><path d="M8 12l3 3 5-5" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <p><strong>Almost done!</strong> Your email client should now be open with the details pre-filled.</p>
+                <p style={{fontSize:'0.85rem',color:'var(--muted)'}}>Please attach your resume to the email before sending.</p>
+                <button className="btn-ghost" style={{marginTop:'1rem'}} onClick={onClose}>Close</button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="jm-form">
+                <div className="jm-row">
+                  <div className="jm-field">
+                    <label>Full Name <span className="jm-required">*</span></label>
+                    <input required value={form.name} onChange={set('name')} placeholder="Jane Smith" />
+                  </div>
+                  <div className="jm-field">
+                    <label>Email Address <span className="jm-required">*</span></label>
+                    <input type="email" required value={form.email} onChange={set('email')} placeholder="jane@example.com" />
+                  </div>
+                </div>
+
+                <div className="jm-row">
+                  <div className="jm-field">
+                    <label>Phone Number</label>
+                    <input type="tel" value={form.phone} onChange={set('phone')} placeholder="+1 (555) 000-0000" />
+                  </div>
+                  <div className="jm-field">
+                    <label>Resume <span className="jm-required">*</span></label>
+                    <label className={`jm-upload${resumeFile ? ' jm-upload--set' : ''}`}>
+                      <input required type="file" accept=".pdf,.doc,.docx" onChange={e => setResumeFile(e.target.files[0])} />
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4 4 4M12 8v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      {resumeFile ? resumeFile.name : 'Choose PDF or DOC'}
+                    </label>
+                  </div>
+                </div>
+
+                <div className="jm-field">
+                  <label>Cover Note <span style={{fontWeight:400,color:'var(--muted)'}}>(optional)</span></label>
+                  <textarea rows={4} value={form.message} onChange={set('message')} placeholder="Tell us briefly why you're a great fit for this role…" />
+                </div>
+
+                <p className="jm-note">
+                  Clicking Submit will open your email client with your details pre-filled. Attach your resume file before sending.
+                </p>
+
+                <button type="submit" className="btn-primary jm-submit">
+                  Submit Application &rarr;
+                </button>
+              </form>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── careers / job openings ───────────────────────────────────── */
 function JobOpeningsPage() {
   useReveal()
-  const [expanded, setExpanded] = useState(null)
-  const toggle = (id) => setExpanded(prev => prev === id ? null : id)
+  const { isAdmin } = useAuth()
+  const [jobs, setJobs]         = useState(careersData.jobs)
+  const [editJob, setEditJob]   = useState(null)   // job being edited
+  const [saving, setSaving]     = useState(false)
+  const [toast, setToast]       = useState(null)
+
+  function showToast(msg, type = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 5000)
+  }
+
+  async function saveToRepo(updatedJobs, message) {
+    const data = await ghGet('src/data/careers.json')
+    const updated = { ...careersData, jobs: updatedJobs }
+    await ghPut('src/data/careers.json', message, b64(JSON.stringify(updated, null, 2)), data.sha)
+  }
+
+  async function handleDelete(job) {
+    if (!window.confirm(`Remove "${job.title}" from the site?`)) return
+    try {
+      const updated = jobs.filter(j => j.id !== job.id)
+      await saveToRepo(updated, `Remove job: ${job.title}`)
+      setJobs(updated)
+      showToast(`"${job.title}" deleted. Site rebuilds in ~1 min.`)
+    } catch (err) {
+      showToast(`Delete failed: ${err.message}`, 'error')
+    }
+  }
+
+  async function handleSaveEdit(updatedJob) {
+    setSaving(true)
+    try {
+      const updated = jobs.map(j => j.id === updatedJob.id ? updatedJob : j)
+      await saveToRepo(updated, `Update job: ${updatedJob.title}`)
+      setJobs(updated)
+      setEditJob(null)
+      showToast(`"${updatedJob.title}" updated. Site rebuilds in ~1 min.`)
+    } catch (err) {
+      showToast(`Save failed: ${err.message}`, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <>
+      {toast && <div className={`admin-toast admin-toast--${toast.type}`} role="alert">{toast.msg}</div>}
+      {editJob && <JobEditModal job={editJob} saving={saving} onSave={handleSaveEdit} onClose={() => setEditJob(null)} />}
+
       <section className="section-hero section-hero--sm">
         <div className="container">
           <p className="eyebrow" data-reveal>
@@ -804,7 +1088,7 @@ function JobOpeningsPage() {
           </p>
           <h1 data-reveal>Current Job Openings</h1>
           <p className="hero-sub" data-reveal>
-            {careersData.jobs.length} open positions &nbsp;·&nbsp; Headquarters: Dayton, OH &nbsp;·&nbsp; Multiple U.S. locations
+            {jobs.length} open positions &nbsp;·&nbsp; Headquarters: Dayton, OH &nbsp;·&nbsp; Multiple U.S. locations
           </p>
         </div>
       </section>
@@ -817,90 +1101,376 @@ function JobOpeningsPage() {
           </p>
 
           <div className="job-list">
-            {careersData.jobs.map((job, i) => {
-              const isOpen = expanded === job.id
-              const dutyBullets = job.duties.split(';').map(s => s.trim()).filter(Boolean)
-              return (
-                <div key={job.id} className={`job-card${isOpen ? ' job-card--open' : ''}`}>
-                  <button className="job-card-header" onClick={() => toggle(job.id)} aria-expanded={isOpen}>
-                    <div className="job-card-meta">
-                      <span className="job-posted">Posted {job.postedOn}</span>
-                      <h3 className="job-title">{job.title}</h3>
-                      <span className="job-location">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{marginRight:'4px',verticalAlign:'middle'}}>
-                          <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-                          <circle cx="6" cy="4.5" r="1.2" fill="currentColor"/>
-                        </svg>
-                        {job.location}
-                      </span>
-                    </div>
-                    <span className={`job-toggle-icon${isOpen ? ' job-toggle-icon--open' : ''}`}>
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </span>
-                  </button>
-
-                  {isOpen && (
-                    <div className="job-card-body">
-                      <div className="job-body-grid">
-                        <div className="job-section job-section--duties">
-                          <h4>Job Duties</h4>
-                          <ul className="job-duties-list">
-                            {dutyBullets.map((d, j) => <li key={j}>{d}.</li>)}
-                          </ul>
-                        </div>
-
-                        <div className="job-sidebar">
-                          <div className="job-section">
-                            <h4>Tools &amp; Technologies</h4>
-                            <div className="job-tags">
-                              {job.tools.map(t => <span className="job-tag" key={t}>{t}</span>)}
-                            </div>
-                          </div>
-
-                          <div className="job-section">
-                            <h4>Minimum Qualifications</h4>
-                            <ul className="job-req-list">
-                              <li>
-                                <span className="req-label">Education</span>
-                                {job.requirements.education}
-                              </li>
-                              {job.requirements.experience && (
-                                <li>
-                                  <span className="req-label">Experience</span>
-                                  {job.requirements.experience}
-                                </li>
-                              )}
-                              <li>
-                                <span className="req-label">Other</span>
-                                {job.requirements.other}
-                              </li>
-                            </ul>
-                          </div>
-
-                          <div className="job-section">
-                            <h4>Location</h4>
-                            <p className="job-hq-info">
-                              Opening through headquarters in <strong>{job.headquarters}</strong>.<br/>
-                              Worksites: {job.location}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="job-apply-bar">
-                        <span className="job-apply-note">Submit resume to apply for this position</span>
-                        <a className="btn-primary" href={`mailto:${job.applyEmail}?subject=Application for ${job.title}`}>
-                          Apply Now &rarr;
-                        </a>
-                      </div>
-                    </div>
-                  )}
+            {jobs.map((job) => (
+              <div key={job.id} className="job-card">
+                <div className="job-card-badges">
+                  <span className="jc-badge jc-badge--id">{job.id}</span>
+                  <span className="jc-badge jc-badge--type">{job.type}</span>
+                  <span className="jc-badge jc-badge--salary">{job.salary}</span>
                 </div>
-              )
-            })}
+
+                <div className="job-card-row">
+                  <div className="job-card-info">
+                    <h3 className="job-title">{job.title}</h3>
+                    <div className="job-card-sub">
+                      <span className="job-location">
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                          <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                          <circle cx="6" cy="4.5" r="1.1" fill="currentColor"/>
+                        </svg>
+                        {job.headquarters} · Multiple U.S. locations
+                      </span>
+                      <span className="job-posted">Posted {job.postedOn}</span>
+                    </div>
+                  </div>
+
+                  <div className="job-card-actions">
+                    {isAdmin ? (
+                      <>
+                        <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => setEditJob(job)} aria-label="Edit job">
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-9 9H2v-3L11 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>
+                          Edit
+                        </button>
+                        <button className="admin-btn admin-btn--danger admin-btn--sm" onClick={() => handleDelete(job)} aria-label="Delete job">
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M6 4V2h4v2M13 4l-1 10H4L3 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          Delete
+                        </button>
+                      </>
+                    ) : (
+                      <Link
+                        className="btn-primary jc-apply-btn"
+                        to={`/careers/jobs/${job.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Apply Now
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
+        </div>
+      </section>
+    </>
+  )
+}
+
+function parseBulletLines(text) {
+  return String(text || '')
+    .split('\n')
+    .map(line => line.replace(/^[\s•\-\*·]+/, '').trim())
+    .filter(Boolean)
+}
+
+function toBulletText(value) {
+  const items = Array.isArray(value)
+    ? value
+    : value
+      ? String(value).split('\n').map(s => s.trim()).filter(Boolean)
+      : []
+  if (!items.length) return '• '
+  return items.map(item => `• ${item.replace(/^[\s•\-\*·]+/, '').trim()}`).join('\n')
+}
+
+function fromBulletText(text) {
+  const items = parseBulletLines(text)
+  return items.length ? items.join('\n') : ''
+}
+
+/* ── job edit modal ────────────────────────────────────────────── */
+function JobEditModal({ job, saving, onSave, onClose }) {
+  const [form, setForm] = useState({
+    title       : job.title,
+    postedOn    : job.postedOn,
+    location    : job.location,
+    headquarters: job.headquarters,
+    duties      : job.duties,
+    tools       : toBulletText(job.tools),
+    edu         : toBulletText(job.requirements.education),
+    exp         : toBulletText(job.requirements.experience),
+    other       : toBulletText(job.requirements.other),
+    applyEmail  : job.applyEmail,
+  })
+
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const updated = {
+      ...job,
+      title       : form.title.trim(),
+      postedOn    : form.postedOn.trim(),
+      location    : form.location.trim(),
+      headquarters: form.headquarters.trim(),
+      duties      : form.duties.trim(),
+      tools       : parseBulletLines(form.tools),
+      requirements: {
+        education : fromBulletText(form.edu),
+        experience: fromBulletText(form.exp) || null,
+        other     : fromBulletText(form.other),
+      },
+      applyEmail  : form.applyEmail.trim(),
+    }
+    onSave(updated)
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-card modal-card--wide" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-eyebrow">Admin</p>
+            <h2 className="modal-title">Edit Job Posting</h2>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <form className="modal-form edit-form" onSubmit={handleSubmit}>
+          <div className="edit-form-grid">
+            <div className="modal-field">
+              <label>Job Title</label>
+              <input value={form.title} onChange={e => set('title', e.target.value)} required />
+            </div>
+            <div className="modal-field">
+              <label>Posted On</label>
+              <input value={form.postedOn} onChange={e => set('postedOn', e.target.value)} placeholder="MM/DD/YYYY" />
+            </div>
+            <div className="modal-field">
+              <label>Apply Email</label>
+              <input value={form.applyEmail} onChange={e => set('applyEmail', e.target.value)} />
+            </div>
+            <div className="modal-field">
+              <label>Headquarters</label>
+              <input value={form.headquarters} onChange={e => set('headquarters', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="modal-field">
+            <label>Location</label>
+            <input value={form.location} onChange={e => set('location', e.target.value)} />
+          </div>
+
+          <div className="modal-field">
+            <label>Job Duties <span className="field-hint">(separate duties with semicolons)</span></label>
+            <textarea rows={6} value={form.duties} onChange={e => set('duties', e.target.value)} />
+          </div>
+
+          <div className="modal-field">
+            <label>Tools &amp; Technologies <span className="field-hint">(one bullet per line)</span></label>
+            <textarea rows={5} value={form.tools} onChange={e => set('tools', e.target.value)} placeholder={'• Oracle\n• DB2\n• SQL'} />
+          </div>
+
+          <div className="modal-field">
+            <label>Education Requirement <span className="field-hint">(one bullet per line)</span></label>
+            <textarea rows={3} value={form.edu} onChange={e => set('edu', e.target.value)} />
+          </div>
+          <div className="modal-field">
+            <label>Experience Requirement <span className="field-hint">(optional, one bullet per line)</span></label>
+            <textarea rows={3} value={form.exp} onChange={e => set('exp', e.target.value)} />
+          </div>
+          <div className="modal-field">
+            <label>Other Requirements <span className="field-hint">(one bullet per line)</span></label>
+            <textarea rows={3} value={form.other} onChange={e => set('other', e.target.value)} />
+          </div>
+
+          <div className="edit-form-actions">
+            <button type="button" className="admin-btn admin-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="modal-submit" disabled={saving} style={{width:'auto',padding:'0.7rem 2rem'}}>
+              {saving ? <span className="modal-spinner"/> : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ── careers / job detail ─────────────────────────────────────── */
+function JobDetailPage() {
+  useReveal()
+  const { jobId } = useParams()
+  const navigate = useNavigate()
+  const formRef = useRef(null)
+  const job = careersData.jobs.find(j => j.id === jobId)
+
+  const [form, setForm] = useState({ name: '', email: '', phone: '', address: '', message: '' })
+  const [resumeFile, setResumeFile] = useState(null)
+  const [submitted, setSubmitted] = useState(false)
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  if (!job) {
+    return (
+      <section className="section-hero">
+        <div className="container">
+          <p className="eyebrow">404</p>
+          <h1>Job Not Found</h1>
+          <p className="hero-lead">This position may have been filled or the link is incorrect.</p>
+          <NavLink to="/careers/jobs" className="btn-primary">Back to Job Openings</NavLink>
+        </div>
+      </section>
+    )
+  }
+
+  const dutyBullets = job.duties.split(';').map(s => s.trim()).filter(Boolean)
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setSubmitted(true)
+  }
+
+  return (
+    <>
+      {/* Hero */}
+      <section className="section-hero section-hero--sm">
+        <div className="container">
+          <p className="eyebrow" data-reveal>
+            <NavLink to="/careers" className="breadcrumb-link">Careers</NavLink>
+            &nbsp;/&nbsp;
+            <NavLink to="/careers/jobs" className="breadcrumb-link">Job Openings</NavLink>
+            &nbsp;/&nbsp; {job.title}
+          </p>
+          <h1 data-reveal>{job.title}</h1>
+          <div className="job-detail-meta" data-reveal>
+            <span className="jd-badge jd-badge--id">ID: {job.id}</span>
+            <span className="jd-badge">{job.type}</span>
+            <span className="jd-badge jd-badge--salary">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{marginRight:'4px',verticalAlign:'middle'}}>
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/>
+                <path d="M12 7v1m0 8v1M9.5 9.5A2.5 2.5 0 0 1 12 8a2.5 2.5 0 0 1 0 5 2.5 2.5 0 0 0 0 5 2.5 2.5 0 0 0 2.5-1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              {job.salary}
+            </span>
+            <span className="jd-badge">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{marginRight:'4px',verticalAlign:'middle'}}>
+                <path d="M6 1a3.5 3.5 0 0 1 3.5 3.5C9.5 7.5 6 11 6 11S2.5 7.5 2.5 4.5A3.5 3.5 0 0 1 6 1Z" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                <circle cx="6" cy="4.5" r="1.2" fill="currentColor"/>
+              </svg>
+              {job.location}
+            </span>
+            <span style={{fontSize:'0.78rem',color:'var(--muted)'}}>Posted {job.postedOn}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Main content */}
+      <section className="section-white">
+        <div className="container jd-layout">
+
+          {/* ── Left: Job Details ── */}
+          <div className="jd-details">
+
+            <div className="job-section">
+              <h4>Job Duties</h4>
+              <ul className="job-duties-list">
+                {dutyBullets.map((d, i) => <li key={i}>{d}.</li>)}
+              </ul>
+            </div>
+
+            <div className="job-section">
+              <h4>Tools &amp; Technologies</h4>
+              <div className="job-tags">
+                {job.tools.map(t => <span className="job-tag" key={t}>{t}</span>)}
+              </div>
+            </div>
+
+            <div className="job-section">
+              <h4>Minimum Qualifications</h4>
+              <ul className="job-bullet-list">
+                {[
+                  { label: 'Education', value: job.requirements.education },
+                  { label: 'Experience', value: job.requirements.experience },
+                  { label: 'Other', value: job.requirements.other },
+                ].filter(r => r.value).map(({ label, value }) => (
+                  <li key={label}><strong>{label}:</strong> {value}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="job-section">
+              <h4>Location</h4>
+              <p className="job-hq-info">
+                Headquarters: <strong>{job.headquarters}</strong><br/>
+                Worksites: {job.location}
+              </p>
+            </div>
+          </div>
+
+          {/* ── Right: Application Form ── */}
+          <aside className="jd-apply-panel" ref={formRef}>
+            <div className="jd-apply-card">
+              <div className="jd-apply-card-header">
+                <h3>Apply for this Position</h3>
+              </div>
+
+              {submitted ? (
+                <div className="jd-success">
+                  <svg width="44" height="44" fill="none" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="var(--amber)" strokeWidth="1.8"/>
+                    <path d="M8 12l3 3 5-5" stroke="var(--amber)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <p><strong>Application submitted!</strong></p>
+                  <p>Thank you for applying. We&apos;ve received your details and will be in touch soon.</p>
+                  <button className="btn-ghost" style={{marginTop:'1rem'}} onClick={() => navigate('/careers/jobs')}>
+                    Back to Jobs
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="jd-form">
+                  <div className="jd-field">
+                    <label>Full Name <span className="jd-req">*</span></label>
+                    <input required value={form.name} onChange={set('name')} placeholder="Jane Smith" />
+                  </div>
+
+                  <div className="jd-field">
+                    <label>Email Address <span className="jd-req">*</span></label>
+                    <input type="email" required value={form.email} onChange={set('email')} placeholder="jane@example.com" />
+                  </div>
+
+                  <div className="jd-field">
+                    <label>Phone Number <span className="jd-req">*</span></label>
+                    <input type="tel" required value={form.phone} onChange={set('phone')} placeholder="+1 (555) 000-0000" />
+                  </div>
+
+                  <div className="jd-field">
+                    <label>Address <span className="jd-req">*</span></label>
+                    <input required value={form.address} onChange={set('address')} placeholder="123 Main St, Dayton, OH 45458" />
+                  </div>
+
+                  <div className="jd-field">
+                    <label>Resume <span className="jd-req">*</span></label>
+                    <label className={`jd-upload${resumeFile ? ' jd-upload--set' : ''}`}>
+                      <input required type="file" accept=".pdf,.doc,.docx" onChange={e => setResumeFile(e.target.files[0])} />
+                      <svg width="15" height="15" fill="none" viewBox="0 0 24 24">
+                        <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4 4 4M12 8v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      {resumeFile ? resumeFile.name : 'Upload PDF or DOC'}
+                    </label>
+                  </div>
+
+                  <div className="jd-field">
+                    <label>Cover Note <span style={{fontWeight:400,opacity:.6}}>(optional)</span></label>
+                    <textarea rows={3} value={form.message} onChange={set('message')} placeholder="Tell us briefly why you're a great fit…" />
+                  </div>
+
+                  <button type="submit" className="btn-primary jd-submit">
+                    Submit Application &rarr;
+                  </button>
+                </form>
+              )}
+            </div>
+          </aside>
+
         </div>
       </section>
     </>
@@ -991,26 +1561,36 @@ function ReferralPage() {
 /* ── lca ──────────────────────────────────────────────────────── */
 function LcaPage() {
   useReveal()
+  const [files] = useState(lcaFiles)
+
   return (
     <>
       <section className="section-hero section-hero--sm">
         <div className="container">
           <p className="eyebrow" data-reveal>Compliance &amp; Transparency</p>
           <h1 data-reveal>LCA ETA 9035</h1>
-          <p className="hero-sub" data-reveal>{lcaFiles.length} certified applications</p>
+          <p className="hero-sub" data-reveal>{files.length} certified applications</p>
         </div>
       </section>
 
       <section className="section-white">
         <div className="container" data-reveal>
-          <p className="body-lg">H1B Certified Labor Condition Applications (ETA 9035)</p>
-          {lcaFiles.length === 0 ? (
-            <p className="lca-empty">No LCA documents have been published yet.</p>
+          <div className="lca-page-header">
+            <p className="body-lg">H1B Certified Labor Condition Applications (ETA 9035)</p>
+          </div>
+
+          {files.length === 0 ? (
+            <p className="lca-empty">No LCA documents published yet.</p>
           ) : (
             <ul className="lca-list">
-              {lcaFiles.map(({ filename, displayName, state, year }) => (
-                <li key={filename}>
-                  <a href={`${base}/lca/${filename}`} target="_blank" rel="noreferrer">
+              {files.map(({ filename, displayName }) => (
+                <li key={filename} className="lca-list-item">
+                  <a
+                    className="lca-list-link"
+                    href={`${base}/lca/${filename}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <span className="lca-name">{displayName}</span>
                     <span className="lca-badge">Certified LCA ↗</span>
                   </a>
@@ -1223,6 +1803,7 @@ export default function App() {
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/careers" element={<CareersPage />} />
         <Route path="/careers/jobs" element={<JobOpeningsPage />} />
+        <Route path="/careers/jobs/:jobId" element={<JobDetailPage />} />
         <Route path="/careers/benefits" element={<BenefitsPage />} />
         <Route path="/careers/referral" element={<ReferralPage />} />
         <Route path="/index.php/your-new-career-starts-here/" element={<CareersPage />} />
