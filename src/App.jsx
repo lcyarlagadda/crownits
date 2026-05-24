@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import './App.css'
 import careersData from './data/careers.json'
+import lcaFiles from './data/lca-files.json'
 import logoUrl from './assets/Logo.png'
 
 /* ── scroll-reveal hook ───────────────────────────────────────── */
@@ -109,23 +110,135 @@ const values = [
 ]
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
-const lcaLinks = [
-  ['Business Intelligence Analysts — TX 2025', `${base}/lca/Business-Intelligence-Analysts_TX_2025-Certified-LCA.pdf`],
-  ['Computer Systems Analysts — FL 2025', `${base}/lca/Computer-Systems-Analysts_FL_2025-Certified-LCA.pdf`],
-  ['Network & Computer Systems Administrators — IN 2025', `${base}/lca/Network-and-Computer-Systems-Administrators_IN_2025-Certified-LCA.pdf`],
-  ['Network & Computer Systems Administrators — OH 2025', `${base}/lca/Network-and-Computer-Systems-Administrators_OH_2025-Certified-LCA.pdf`],
-  ['Software Developer — OH 2025', `${base}/lca/Software-Developer_OH_2025-Certified-LCA.pdf`],
-  ['Software Developer — TX 2025', `${base}/lca/SOftware-Developer_TX_2025-Certified-LCA.pdf`],
-  ['Software Developer 2 — OH 2025', `${base}/lca/Software-Developer2_OH_2025-Certified-LCA.pdf`],
-  ['Software Developer — IL 2024', `${base}/lca/Software-Developers_IL_2024-Certified-LCA.pdf`],
-  ['Software Developers — OH 2024', `${base}/lca/Software-Developers_OH_2024-Certified-LCA.pdf`],
-  ['Software Quality Assurance Analysts — NY 2025', `${base}/lca/Software-Quality-Assurance-Analysts_NY_2025-Certified-LCA.pdf`],
-]
 
-/* ── layout ───────────────────────────────────────────────────── */
+/* ── login modal ──────────────────────────────────────────────── */
+function LoginModal({ onClose }) {
+  const [form, setForm] = useState({ username: '', password: '' })
+  const [errors, setErrors] = useState({})
+  const [showPw, setShowPw] = useState(false)
+  const [authError, setAuthError] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  // Close on ESC
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  // Lock body scroll
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
+
+  function validate() {
+    const errs = {}
+    if (!form.username.trim()) errs.username = 'Username is required.'
+    else if (form.username.trim().length < 3) errs.username = 'Must be at least 3 characters.'
+    if (!form.password) errs.password = 'Password is required.'
+    else if (form.password.length < 6) errs.password = 'Must be at least 6 characters.'
+    return errs
+  }
+
+  function handleChange(e) {
+    const { name, value } = e.target
+    setForm(f => ({ ...f, [name]: value }))
+    setErrors(err => ({ ...err, [name]: undefined }))
+    setAuthError(false)
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+      setAuthError(true)
+    }, 900)
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="Employee Login">
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-eyebrow">Employee Portal</p>
+            <h2 className="modal-title">Sign In</h2>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 2l12 12M14 2L2 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <form className="modal-form" onSubmit={handleSubmit} noValidate>
+          {authError && (
+            <div className="modal-auth-error" role="alert">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
+                <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M8 5v3.5M8 11h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+              Invalid username or password. Please try again.
+            </div>
+          )}
+
+          <div className="modal-field">
+            <label htmlFor="login-username">Username</label>
+            <input
+              id="login-username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              autoFocus
+              placeholder="Enter your username"
+              value={form.username}
+              onChange={handleChange}
+              className={errors.username ? 'input-error' : ''}
+            />
+            {errors.username && <span className="field-error">{errors.username}</span>}
+          </div>
+
+          <div className="modal-field">
+            <label htmlFor="login-password">Password</label>
+            <div className="pw-wrap">
+              <input
+                id="login-password"
+                name="password"
+                type={showPw ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={form.password}
+                onChange={handleChange}
+                className={errors.password ? 'input-error' : ''}
+              />
+              <button type="button" className="pw-toggle" onClick={() => setShowPw(v => !v)} aria-label={showPw ? 'Hide password' : 'Show password'}>
+                {showPw ? (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.4"/></svg>
+                )}
+              </button>
+            </div>
+            {errors.password && <span className="field-error">{errors.password}</span>}
+          </div>
+
+          <button type="submit" className="modal-submit" disabled={loading}>
+            {loading ? <span className="modal-spinner" /> : 'Sign In'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+
 function Layout({ children }) {
   const [scrolled, setScrolled] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [loginOpen, setLoginOpen] = React.useState(false);
   const location = window.location.pathname;
 
   React.useEffect(() => {
@@ -168,6 +281,13 @@ function Layout({ children }) {
           <nav className="nav-desktop">
             {navLinks.map(l => <NavLink key={l.to} to={l.to} end={l.end}>{l.label}</NavLink>)}
             <NavLink to="/contact-us" className="nav-cta">Let's Talk</NavLink>
+            <button className="nav-login-btn" onClick={() => setLoginOpen(true)}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{flexShrink:0}}>
+                <circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M1 15c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Employee Login
+            </button>
           </nav>
 
           {/* Hamburger button */}
@@ -193,9 +313,13 @@ function Layout({ children }) {
           <NavLink to="/contact-us" className="nav-drawer-cta" onClick={() => setMenuOpen(false)}>
             Let's Talk
           </NavLink>
+          <button className="nav-drawer-login" onClick={() => { setMenuOpen(false); setLoginOpen(true); }}>
+            Employee Login
+          </button>
         </div>
       </div>
       {menuOpen && <div className="nav-overlay" onClick={() => setMenuOpen(false)} />}
+      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
 
       <main>{children}</main>
 
@@ -871,24 +995,29 @@ function LcaPage() {
     <>
       <section className="section-hero section-hero--sm">
         <div className="container">
-          <p className="eyebrow" data-reveal>Compliance & Transparency</p>
+          <p className="eyebrow" data-reveal>Compliance &amp; Transparency</p>
           <h1 data-reveal>LCA ETA 9035</h1>
+          <p className="hero-sub" data-reveal>{lcaFiles.length} certified applications</p>
         </div>
       </section>
 
       <section className="section-white">
         <div className="container" data-reveal>
           <p className="body-lg">H1B Certified Labor Condition Applications (ETA 9035)</p>
-          <ul className="lca-list">
-            {lcaLinks.map(([name, url]) => (
-              <li key={name}>
-                <a href={url} target="_blank" rel="noreferrer">
-                  <span className="lca-name">{name}</span>
-                  <span className="lca-badge">Certified LCA ↗</span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          {lcaFiles.length === 0 ? (
+            <p className="lca-empty">No LCA documents have been published yet.</p>
+          ) : (
+            <ul className="lca-list">
+              {lcaFiles.map(({ filename, displayName, state, year }) => (
+                <li key={filename}>
+                  <a href={`${base}/lca/${filename}`} target="_blank" rel="noreferrer">
+                    <span className="lca-name">{displayName}</span>
+                    <span className="lca-badge">Certified LCA ↗</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
     </>

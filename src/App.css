@@ -189,6 +189,29 @@ img { display: block; max-width: 100%; }
 }
 .nav-drawer-cta:hover { background: var(--amber); color: var(--ink); }
 
+.nav-drawer-login {
+  display: block; margin-top: 0.75rem;
+  padding: 0.85rem 1.5rem; border-radius: 100px;
+  background: none; border: 1.5px solid var(--rule);
+  color: var(--ink); text-align: center;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.nav-drawer-login:hover { border-color: var(--amber); color: var(--amber); }
+
+/* employee login button in desktop nav */
+.nav-login-btn {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin-left: 0.5rem;
+  padding: 0.42rem 0.9rem;
+  border: 1.5px solid var(--rule); border-radius: 100px;
+  background: none; cursor: pointer;
+  font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.nav-login-btn:hover { border-color: var(--ink); color: var(--ink); background: var(--light-bg); }
+
 /* overlay behind drawer */
 .nav-overlay {
   display: none;
@@ -975,3 +998,108 @@ nav a.active::after { transform: scaleX(1); }
   .section-white, .section-light, .section-dark { padding: 3.5rem 0; }
   .careers-subpage-grid { grid-template-columns: 1fr; }
 }
+
+/* ══════════════════════════════════════════════════════════
+   LOGIN MODAL
+══════════════════════════════════════════════════════════ */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(10,14,26,0.5);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  animation: softIn 0.18s ease both;
+}
+
+.modal-card {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%; max-width: 420px;
+  box-shadow: 0 24px 64px rgba(10,14,26,0.18);
+  animation: fadeUp 0.22s ease both;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 2rem 2rem 0;
+}
+.modal-eyebrow {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--amber); margin-bottom: 0.25rem;
+}
+.modal-title { font-size: 1.5rem; font-weight: 800; color: var(--ink); margin: 0; }
+.modal-close {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--light-bg); border: none; cursor: pointer;
+  color: var(--ink-soft); flex-shrink: 0; margin-top: 0.2rem;
+  transition: background 0.2s, color 0.2s;
+}
+.modal-close:hover { background: #e2e8f0; color: var(--ink); }
+
+.modal-form {
+  padding: 1.5rem 2rem 2rem;
+  display: grid; gap: 1.25rem;
+}
+
+.modal-auth-error {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px;
+  color: #be123c; font-size: 0.85rem; font-weight: 500; line-height: 1.4;
+}
+
+.modal-field { display: grid; gap: 0.4rem; }
+.modal-field label {
+  font-size: 0.8rem; font-weight: 600; color: var(--ink); letter-spacing: 0.02em;
+}
+.modal-field input {
+  width: 100%; padding: 0.7rem 1rem;
+  border: 1.5px solid var(--rule); border-radius: 8px;
+  font-size: 0.92rem; color: var(--ink);
+  outline: none; background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+.modal-field input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
+}
+.modal-field input.input-error { border-color: #f43f5e; }
+.modal-field input.input-error:focus { box-shadow: 0 0 0 3px rgba(244,63,94,0.15); }
+
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 2.8rem; }
+.pw-toggle {
+  position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); padding: 0.25rem;
+  transition: color 0.2s;
+}
+.pw-toggle:hover { color: var(--ink); }
+
+.field-error {
+  font-size: 0.75rem; color: #f43f5e; font-weight: 500;
+}
+
+.modal-submit {
+  width: 100%; padding: 0.85rem;
+  background: var(--ink); color: #fff;
+  border: none; border-radius: 100px;
+  font-size: 0.92rem; font-weight: 700; letter-spacing: 0.04em;
+  cursor: pointer; margin-top: 0.25rem;
+  display: grid; place-items: center;
+  transition: background 0.2s, transform 0.2s;
+}
+.modal-submit:hover:not(:disabled) { background: var(--amber); color: var(--ink); transform: translateY(-1px); }
+.modal-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.modal-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
