@@ -56,7 +56,11 @@ main .contact-block p,
 main .legal-prose p,
 main .legal-prose li {
   text-align: justify;
-  hyphens: auto;
+  text-justify: inter-word;
+  hyphens: none;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: normal;
 }
 
 a { color: inherit; }
@@ -1073,6 +1077,10 @@ nav a.active::after { transform: scaleX(1); }
 }
 .jd-field input:focus,
 .jd-field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(234,179,8,0.15); }
+.jd-field input.input-error,
+.jd-field textarea.input-error { border-color: #f43f5e; }
+.jd-field input.input-error:focus,
+.jd-field textarea.input-error:focus { border-color: #f43f5e; box-shadow: 0 0 0 3px rgba(244,63,94,0.15); }
 
 .jd-upload {
   display: flex; align-items: center; gap: 0.55rem;
@@ -1085,6 +1093,7 @@ nav a.active::after { transform: scaleX(1); }
 .jd-upload input { display: none; }
 .jd-upload:hover { border-color: var(--amber); background: #fefce8; }
 .jd-upload--set { color: var(--ink); border-style: solid; border-color: var(--amber); background: #fefce8; }
+.jd-upload--error { border-color: #f43f5e; border-style: solid; background: #fff1f2; color: #be123c; }
 
 .jd-note {
   font-size: 0.78rem; color: var(--muted); line-height: 1.55;
@@ -1221,6 +1230,14 @@ nav a.active::after { transform: scaleX(1); }
 }
 .contact-form-placeholder h3 { font-size: 1.2rem; font-weight: 700; color: var(--ink); }
 .contact-form-placeholder p  { font-size: 0.92rem; color: var(--muted); line-height: 1.75; }
+.contact-form { padding: 0; }
+.contact-form-success { padding: 1rem 0 0; }
+
+.form-submit-error {
+  font-size: 0.82rem; color: #be123c; font-weight: 500;
+  padding: 0.65rem 0.85rem; background: #fff1f2;
+  border: 1px solid #fecdd3; border-radius: var(--r-sm);
+}
 
 /* ══════════════════════════════════════════════════════════
    FOOTER

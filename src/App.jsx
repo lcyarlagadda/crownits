@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom'
 import './App.css'
 import careersData from './data/careers.json'
 import lcaFiles   from './data/lca-files.json'
@@ -48,6 +48,89 @@ function fileToB64(file) {
     r.onerror = rej
     r.readAsDataURL(file)
   })
+}
+
+/* ── email (Web3Forms) — disabled for now ─────────────────────── */
+/*
+const WEB3FORMS_KEY = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || ''
+const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'hr@crownits.com'
+
+async function postEmailJson(payload) {
+  const res = await fetch('https://api.web3forms.com/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json()
+  if (!data.success) throw new Error(data.message || 'Unable to send email. Please try again.')
+  return data
+}
+
+async function postEmailFormData(formData) {
+  const res = await fetch('https://api.web3forms.com/submit', { method: 'POST', body: formData })
+  const data = await res.json()
+  if (!data.success) throw new Error(data.message || 'Unable to send email. Please try again.')
+  return data
+}
+
+async function sendContactEmail({ name, email, phone, message }) {
+  if (!WEB3FORMS_KEY) throw new Error('Email is not configured yet. Please email hr@crownits.com directly.')
+  return postEmailJson({
+    access_key: WEB3FORMS_KEY,
+    subject: 'Website Contact — Crown IT Solutions',
+    from_name: name.trim(),
+    name: name.trim(),
+    email: email.trim(),
+    phone: phone.trim(),
+    message: message.trim(),
+    to: CONTACT_EMAIL,
+  })
+}
+
+async function sendJobApplicationEmail({ job, name, email, phone, address, message, resumeFile }) {
+  if (!WEB3FORMS_KEY) throw new Error('Email is not configured yet. Please email hr@crownits.com directly.')
+
+  const formData = new FormData()
+  formData.append('access_key', WEB3FORMS_KEY)
+  formData.append('subject', `Job Application — ${job.title} [${job.id}]`)
+  formData.append('from_name', name.trim())
+  formData.append('name', name.trim())
+  formData.append('email', email.trim())
+  formData.append('phone', phone.trim())
+  formData.append('to', job.applyEmail || CONTACT_EMAIL)
+  formData.append('message', [
+    `Job Applied For: ${job.title} (${job.id})`,
+    `Name: ${name.trim()}`,
+    `Email: ${email.trim()}`,
+    `Phone: ${phone.trim()}`,
+    `Address: ${address.trim()}`,
+    message.trim() ? `\nCover Note:\n${message.trim()}` : '',
+  ].filter(Boolean).join('\n'))
+  if (resumeFile) formData.append('attachment', resumeFile, resumeFile.name)
+
+  return postEmailFormData(formData)
+}
+*/
+
+function validateContactForm(form) {
+  const errs = {}
+  const name = form.name.trim()
+  if (!name) errs.name = 'Name is required.'
+  else if (name.length < 2) errs.name = 'Please enter at least 2 characters.'
+
+  const email = form.email.trim()
+  if (!email) errs.email = 'Email is required.'
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Please enter a valid email address.'
+
+  const phone = form.phone.trim()
+  if (phone && phone.replace(/\D/g, '').length < 10) errs.phone = 'Please enter a valid phone number.'
+
+  const message = form.message.trim()
+  if (!message) errs.message = 'Message is required.'
+  else if (message.length < 10) errs.message = 'Please enter at least 10 characters.'
+  else if (message.length > 2000) errs.message = 'Message must be 2,000 characters or fewer.'
+
+  return errs
 }
 
 /* ── scroll-reveal hook ───────────────────────────────────────── */
@@ -1179,6 +1262,43 @@ function fromBulletText(text) {
   return items.length ? items.join('\n') : ''
 }
 
+const RESUME_ACCEPT = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+const RESUME_EXT = /\.(pdf|doc|docx)$/i
+const MAX_RESUME_MB = 5
+
+function validateJobApplication(form, resumeFile) {
+  const errs = {}
+  const name = form.name.trim()
+  if (!name) errs.name = 'Full name is required.'
+  else if (name.length < 2) errs.name = 'Please enter at least 2 characters.'
+  else if (!/^[a-zA-Z\s'.-]+$/.test(name)) errs.name = 'Name can only contain letters, spaces, hyphens, and apostrophes.'
+
+  const email = form.email.trim()
+  if (!email) errs.email = 'Email address is required.'
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Please enter a valid email address.'
+
+  const phone = form.phone.trim()
+  const phoneDigits = phone.replace(/\D/g, '')
+  if (!phone) errs.phone = 'Phone number is required.'
+  else if (phoneDigits.length < 10) errs.phone = 'Please enter a valid 10-digit phone number.'
+  else if (phoneDigits.length > 15) errs.phone = 'Phone number is too long.'
+
+  const address = form.address.trim()
+  if (!address) errs.address = 'Address is required.'
+  else if (address.length < 10) errs.address = 'Please enter a complete street address.'
+
+  if (!resumeFile) errs.resume = 'Please upload your resume (PDF or DOC).'
+  else {
+    const okType = RESUME_ACCEPT.includes(resumeFile.type) || RESUME_EXT.test(resumeFile.name)
+    if (!okType) errs.resume = 'Resume must be a PDF, DOC, or DOCX file.'
+    else if (resumeFile.size > MAX_RESUME_MB * 1024 * 1024) errs.resume = `Resume must be ${MAX_RESUME_MB} MB or smaller.`
+  }
+
+  if (form.message.trim().length > 2000) errs.message = 'Cover note must be 2,000 characters or fewer.'
+
+  return errs
+}
+
 /* ── job edit modal ────────────────────────────────────────────── */
 function JobEditModal({ job, saving, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -1300,14 +1420,26 @@ function JobEditModal({ job, saving, onSave, onClose }) {
 function JobDetailPage() {
   useReveal()
   const { jobId } = useParams()
-  const navigate = useNavigate()
   const formRef = useRef(null)
   const job = careersData.jobs.find(j => j.id === jobId)
 
   const [form, setForm] = useState({ name: '', email: '', phone: '', address: '', message: '' })
   const [resumeFile, setResumeFile] = useState(null)
+  const [errors, setErrors] = useState({})
   const [submitted, setSubmitted] = useState(false)
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+
+  function handleChange(e) {
+    const { name, value } = e.target
+    setForm(f => ({ ...f, [name]: value }))
+    setErrors(err => ({ ...err, [name]: undefined }))
+  }
+
+  function handleResumeChange(e) {
+    setResumeFile(e.target.files?.[0] || null)
+    setErrors(err => ({ ...err, resume: undefined }))
+  }
 
   if (!job) {
     return (
@@ -1324,9 +1456,34 @@ function JobDetailPage() {
 
   const dutyBullets = job.duties.split(';').map(s => s.trim()).filter(Boolean)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setSubmitted(true)
+    const errs = validateJobApplication(form, resumeFile)
+    if (Object.keys(errs).length) {
+      setErrors(errs)
+      setSubmitError(null)
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      return
+    }
+
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      // await sendJobApplicationEmail({
+      //   job,
+      //   name: form.name,
+      //   email: form.email,
+      //   phone: form.phone,
+      //   address: form.address,
+      //   message: form.message,
+      //   resumeFile,
+      // })
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err.message || 'Unable to send your application. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -1421,50 +1578,103 @@ function JobDetailPage() {
                   </svg>
                   <p><strong>Application submitted!</strong></p>
                   <p>Thank you for applying. We&apos;ve received your details and will be in touch soon.</p>
-                  <button className="btn-ghost" style={{marginTop:'1rem'}} onClick={() => navigate('/careers/jobs')}>
+                  <NavLink to="/careers/jobs" className="btn-primary" style={{marginTop:'1rem'}}>
                     Back to Jobs
-                  </button>
+                  </NavLink>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="jd-form">
+                <form onSubmit={handleSubmit} className="jd-form" noValidate>
                   <div className="jd-field">
-                    <label>Full Name <span className="jd-req">*</span></label>
-                    <input required value={form.name} onChange={set('name')} placeholder="Jane Smith" />
+                    <label htmlFor="jd-name">Full Name <span className="jd-req">*</span></label>
+                    <input
+                      id="jd-name"
+                      name="name"
+                      value={form.name}
+                      onChange={handleChange}
+                      placeholder="Jane Smith"
+                      className={errors.name ? 'input-error' : ''}
+                      aria-invalid={!!errors.name}
+                    />
+                    {errors.name && <span className="field-error" role="alert">{errors.name}</span>}
                   </div>
 
                   <div className="jd-field">
-                    <label>Email Address <span className="jd-req">*</span></label>
-                    <input type="email" required value={form.email} onChange={set('email')} placeholder="jane@example.com" />
+                    <label htmlFor="jd-email">Email Address <span className="jd-req">*</span></label>
+                    <input
+                      id="jd-email"
+                      name="email"
+                      type="email"
+                      value={form.email}
+                      onChange={handleChange}
+                      placeholder="jane@example.com"
+                      className={errors.email ? 'input-error' : ''}
+                      aria-invalid={!!errors.email}
+                    />
+                    {errors.email && <span className="field-error" role="alert">{errors.email}</span>}
                   </div>
 
                   <div className="jd-field">
-                    <label>Phone Number <span className="jd-req">*</span></label>
-                    <input type="tel" required value={form.phone} onChange={set('phone')} placeholder="+1 (555) 000-0000" />
+                    <label htmlFor="jd-phone">Phone Number <span className="jd-req">*</span></label>
+                    <input
+                      id="jd-phone"
+                      name="phone"
+                      type="tel"
+                      value={form.phone}
+                      onChange={handleChange}
+                      placeholder="+1 (555) 000-0000"
+                      className={errors.phone ? 'input-error' : ''}
+                      aria-invalid={!!errors.phone}
+                    />
+                    {errors.phone && <span className="field-error" role="alert">{errors.phone}</span>}
                   </div>
 
                   <div className="jd-field">
-                    <label>Address <span className="jd-req">*</span></label>
-                    <input required value={form.address} onChange={set('address')} placeholder="123 Main St, Dayton, OH 45458" />
+                    <label htmlFor="jd-address">Address <span className="jd-req">*</span></label>
+                    <input
+                      id="jd-address"
+                      name="address"
+                      value={form.address}
+                      onChange={handleChange}
+                      placeholder="123 Main St, Dayton, OH 45458"
+                      className={errors.address ? 'input-error' : ''}
+                      aria-invalid={!!errors.address}
+                    />
+                    {errors.address && <span className="field-error" role="alert">{errors.address}</span>}
                   </div>
 
                   <div className="jd-field">
                     <label>Resume <span className="jd-req">*</span></label>
-                    <label className={`jd-upload${resumeFile ? ' jd-upload--set' : ''}`}>
-                      <input required type="file" accept=".pdf,.doc,.docx" onChange={e => setResumeFile(e.target.files[0])} />
+                    <label className={`jd-upload${resumeFile ? ' jd-upload--set' : ''}${errors.resume ? ' jd-upload--error' : ''}`}>
+                      <input type="file" accept=".pdf,.doc,.docx" onChange={handleResumeChange} aria-invalid={!!errors.resume} />
                       <svg width="15" height="15" fill="none" viewBox="0 0 24 24">
                         <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4 4 4M12 8v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                       {resumeFile ? resumeFile.name : 'Upload PDF or DOC'}
                     </label>
+                    {errors.resume && <span className="field-error" role="alert">{errors.resume}</span>}
                   </div>
 
                   <div className="jd-field">
-                    <label>Cover Note <span style={{fontWeight:400,opacity:.6}}>(optional)</span></label>
-                    <textarea rows={3} value={form.message} onChange={set('message')} placeholder="Tell us briefly why you're a great fit…" />
+                    <label htmlFor="jd-message">Cover Note <span style={{fontWeight:400,opacity:.6}}>(optional)</span></label>
+                    <textarea
+                      id="jd-message"
+                      name="message"
+                      rows={3}
+                      value={form.message}
+                      onChange={handleChange}
+                      placeholder="Tell us briefly why you're a great fit…"
+                      className={errors.message ? 'input-error' : ''}
+                      aria-invalid={!!errors.message}
+                    />
+                    {errors.message && <span className="field-error" role="alert">{errors.message}</span>}
                   </div>
 
-                  <button type="submit" className="btn-primary jd-submit">
-                    Submit Application &rarr;
+                  {submitError && (
+                    <div className="form-submit-error" role="alert">{submitError}</div>
+                  )}
+
+                  <button type="submit" className="btn-primary jd-submit" disabled={submitting}>
+                    {submitting ? 'Sending…' : 'Submit Application →'}
                   </button>
                 </form>
               )}
@@ -1607,6 +1817,39 @@ function LcaPage() {
 /* ── contact ──────────────────────────────────────────────────── */
 function ContactPage() {
   useReveal()
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
+  const [errors, setErrors] = useState({})
+  const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+
+  function handleChange(e) {
+    const { name, value } = e.target
+    setForm(f => ({ ...f, [name]: value }))
+    setErrors(err => ({ ...err, [name]: undefined }))
+    setSubmitError(null)
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const errs = validateContactForm(form)
+    if (Object.keys(errs).length) {
+      setErrors(errs)
+      return
+    }
+
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      // await sendContactEmail(form)
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err.message || 'Unable to send your message. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <>
       <section className="section-hero section-hero--sm">
@@ -1621,7 +1864,7 @@ function ContactPage() {
           <div className="prose">
             <p>
               Thank you for visiting CrownIT Solutions, LLC. For questions or inquiries
-              please send us an email or contact us using the following information.
+              please send us a message using the form or contact us using the following information.
             </p>
             <div className="contact-block">
               <p><strong>Headquarters</strong></p>
@@ -1636,13 +1879,88 @@ function ContactPage() {
             <p className="contact-note">Please allow us 24–48 hours to respond.</p>
           </div>
           <div className="contact-form-placeholder" data-reveal>
-            <h3>Let Us Contact You</h3>
-            <p>
-              Please reach out and we will get in touch shortly. Our secure email system
-              guarantees your information is protected and all communications remain
-              completely confidential.
-            </p>
-            <a className="btn-primary" href="mailto:hr@crownits.com">Send a Message</a>
+            <h3>Send Us a Message</h3>
+            <p>Fill in your details below and we&apos;ll get back to you shortly.</p>
+
+            {submitted ? (
+              <div className="jd-success contact-form-success">
+                <svg width="44" height="44" fill="none" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="var(--amber)" strokeWidth="1.8"/>
+                  <path d="M8 12l3 3 5-5" stroke="var(--amber)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <p><strong>Message sent!</strong></p>
+                <p>Thank you for reaching out. We&apos;ve received your message and will respond soon.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="jd-form contact-form" noValidate>
+                <div className="jd-field">
+                  <label htmlFor="contact-name">Name <span className="jd-req">*</span></label>
+                  <input
+                    id="contact-name"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="Jane Smith"
+                    className={errors.name ? 'input-error' : ''}
+                    aria-invalid={!!errors.name}
+                  />
+                  {errors.name && <span className="field-error" role="alert">{errors.name}</span>}
+                </div>
+
+                <div className="jd-field">
+                  <label htmlFor="contact-email">Email <span className="jd-req">*</span></label>
+                  <input
+                    id="contact-email"
+                    name="email"
+                    type="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="jane@example.com"
+                    className={errors.email ? 'input-error' : ''}
+                    aria-invalid={!!errors.email}
+                  />
+                  {errors.email && <span className="field-error" role="alert">{errors.email}</span>}
+                </div>
+
+                <div className="jd-field">
+                  <label htmlFor="contact-phone">Phone <span style={{fontWeight:400,opacity:.6}}>(optional)</span></label>
+                  <input
+                    id="contact-phone"
+                    name="phone"
+                    type="tel"
+                    value={form.phone}
+                    onChange={handleChange}
+                    placeholder="+1 (555) 000-0000"
+                    className={errors.phone ? 'input-error' : ''}
+                    aria-invalid={!!errors.phone}
+                  />
+                  {errors.phone && <span className="field-error" role="alert">{errors.phone}</span>}
+                </div>
+
+                <div className="jd-field">
+                  <label htmlFor="contact-message">Message <span className="jd-req">*</span></label>
+                  <textarea
+                    id="contact-message"
+                    name="message"
+                    rows={4}
+                    value={form.message}
+                    onChange={handleChange}
+                    placeholder="How can we help you?"
+                    className={errors.message ? 'input-error' : ''}
+                    aria-invalid={!!errors.message}
+                  />
+                  {errors.message && <span className="field-error" role="alert">{errors.message}</span>}
+                </div>
+
+                {submitError && (
+                  <div className="form-submit-error" role="alert">{submitError}</div>
+                )}
+
+                <button type="submit" className="btn-primary jd-submit" disabled={submitting}>
+                  {submitting ? 'Sending…' : 'Send Message →'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </section>
